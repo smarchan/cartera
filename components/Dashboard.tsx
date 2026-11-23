@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useClerk } from "@clerk/nextjs";
 import { Market, computePositions, computeSeries, sortTx } from "@/lib/portfolio";
 import { fromCsv, toCsv, usePortfolio } from "@/lib/store";
 import { useMarket } from "@/lib/useMarket";
@@ -17,13 +17,16 @@ const BASES = ["EUR", "USD", "GBP", "CHF", "JPY"];
 
 export default function Dashboard() {
   const pf = usePortfolio();
-  const { txs, settings, isSample } = pf;
+  const { txs, settings } = pf;
+  const { signOut } = useClerk();
   const base = settings.base;
   const mkt = useMarket(txs, base);
 
   const [modal, setModal] = useState<{ edit?: Transaction; preset?: TxPreset } | null>(null);
   const [menu, setMenu] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [showWarn, setShowWarn] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -34,6 +37,13 @@ export default function Dashboard() {
   }, [settings.colorPnl]);
 
   useEffect(() => {
+    if (pf.error) {
+      setToast(pf.error);
+      pf.clearError();
+    }
+  }, [pf]);
+
+  useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(null), 3200);
     return () => clearTimeout(id);
@@ -41,7 +51,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!menu) return;
-    const close = (e: MouseEvent) => !menuRef.current?.contains(e.target as Node) && (setMenu(false), setConfirmClear(false));
+    const close = (e: MouseEvent) => !menuRef.current?.contains(e.target as Node) && (setMenu(false), setConfirmClear(false), setConfirmDelete(false));
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [menu]);
@@ -69,7 +79,7 @@ export default function Dashboard() {
 
   const { open, closed, summary: s, series } = calc;
   const warnings = [...mkt.errors, ...calc.warnings];
-  const firstLoad = mkt.loading && !mkt.lastUpdate && txs.length > 0;
+  const firstLoad = !pf.ready || (mkt.loading && !mkt.lastUpdate && txs.length > 0);
   const sk = firstLoad ? "skeleton" : "";
 
   const heldBefore = useCallback(
@@ -105,7 +115,7 @@ export default function Dashboard() {
       } else {
         const { txs: list, errors } = fromCsv(text);
         if (!list.length) throw new Error(errors[0]);
-        pf.replaceAll(isSample ? list : [...txs, ...list]);
+        pf.appendMany(list);
         setToast(`${list.length} operaciones importadas${errors.length ? ` · ${errors.length} filas ignoradas` : ""}.`);
       }
     } catch (e) {
@@ -129,6 +139,7 @@ export default function Dashboard() {
             <span className="hide-sm">{mkt.anyOpen ? "Mercado abierto" : "Mercados cerrados"}</span>
             {time && <span className="num">· {time}</span>}
           </div>
+          {pf.saving && <span className="status hide-sm">Guardando…</span>}
           {warnings.length > 0 && (
             <button className="btn ghost sm" onClick={() => setShowWarn((v) => !v)} aria-expanded={showWarn}>
               {warnings.length} aviso{warnings.length > 1 ? "s" : ""}
@@ -157,8 +168,30 @@ export default function Dashboard() {
                     Confirmar: borrar todas las operaciones
                   </button>
                 ) : (
-                  <button role="menuitem" className="muted" onClick={() => setConfirmClear(true)}>Borrar todo…</button>
+                  <button role="menuitem" className="muted" onClick={() => setConfirmClear(true)}>Borrar todas las operaciones…</button>
                 )}
+                {confirmDelete ? (
+                  <button
+                    role="menuitem"
+                    disabled={deleting}
+                    onClick={async () => {
+                      setDeleting(true);
+                      try {
+                        await pf.deleteAccount();
+                        await signOut({ redirectUrl: "/sign-in" });
+                      } catch (e) {
+                        setToast((e as Error).message);
+                        setDeleting(false);
+                      }
+                    }}
+                  >
+                    {deleting ? "Eliminando…" : "Confirmar: eliminar mi cuenta y todos mis datos"}
+                  </button>
+                ) : (
+                  <button role="menuitem" className="muted" onClick={() => setConfirmDelete(true)}>Eliminar mi cuenta…</button>
+                )}
+                <hr />
+                <a role="menuitem" className="mi-link" href="/privacidad">Privacidad</a>
               </div>
             )}
           </div>
@@ -176,13 +209,22 @@ export default function Dashboard() {
             <ul className="warnings">{warnings.map((w, i) => <li key={i}>· {w}</li>)}</ul>
           </div>
         )}
-        {isSample && (
+        {pf.localCandidate && (
           <div className="banner">
-            <strong>Cartera de ejemplo.</strong>
-            <span>Tu primera operación la sustituye. Los datos se guardan solo en este navegador.</span>
+            <strong>Tienes {pf.localCandidate.length} operaciones guardadas en este navegador.</strong>
+            <span>Pásalas a tu cuenta para verlas en cualquier dispositivo.</span>
+            <span className="spacer" />
+            <button className="btn sm primary" onClick={async () => { await pf.importLocal(); setToast("Cartera importada a tu cuenta."); }}>Importar a mi cuenta</button>
+            <button className="btn sm ghost" onClick={pf.dismissLocal}>Ahora no</button>
+          </div>
+        )}
+        {pf.ready && txs.length === 0 && !pf.localCandidate && (
+          <div className="banner">
+            <strong>Tu cartera está vacía.</strong>
+            <span>Añade tu primera compra o importa un CSV con tus operaciones.</span>
             <span className="spacer" />
             <button className="btn sm" onClick={() => fileRef.current?.click()}>Importar CSV</button>
-            <button className="btn sm" onClick={() => pf.replaceAll([])}>Empezar vacía</button>
+            <button className="btn sm primary" onClick={() => setModal({})}>Nueva operación</button>
           </div>
         )}
 
@@ -259,7 +301,7 @@ export default function Dashboard() {
           onSave={(t) => {
             pf.upsertTx(t);
             setModal(null);
-            setToast(isSample ? "Cartera de ejemplo sustituida por tu operación." : modal.edit ? "Operación actualizada." : "Operación añadida.");
+            setToast(modal.edit ? "Operación actualizada." : "Operación añadida.");
           }}
         />
       )}

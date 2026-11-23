@@ -243,3 +243,5 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .prose h1 { font-size: 26px; letter-spacing: -0.02em; margin: 8px 0 12px; }
 .prose h2 { font-size: 15px; margin: 24px 0 6px; }
 .prose p, .prose li { color: var(--muted); line-height: 1.6; }
+.menu a.mi-link { display: flex; padding: 8px 10px; border-radius: 6px; font-size: 13px; color: var(--muted); text-decoration: none; }
+.menu a.mi-link:hover { background: var(--surface-2); color: var(--text); }

@@ -1,81 +1,154 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import type { Transaction } from "./types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Settings, Transaction } from "./types";
+import { applyOptimistic } from "./optimistic";
 
-const KEY = "cartera:v1";
+const LOCAL_KEY = "cartera:v1";
 
-export interface Settings {
-  base: string;
-  colorPnl: boolean;
+export type { Settings };
+
+
+const DEFAULT_SETTINGS: Settings = { base: "EUR", colorPnl: false };
+
+async function api<T = unknown>(url: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(url, { ...init, headers: { "Content-Type": "application/json" }, cache: "no-store" });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((body as { error?: string }).error || "No se pudo guardar. Inténtalo de nuevo.");
+  return body as T;
 }
 
-interface Stored {
-  txs: Transaction[];
-  settings: Settings;
-  isSample: boolean;
-}
-
-export const SAMPLE: Transaction[] = [
-  { id: "s1", symbol: "IWDA.AS", name: "iShares Core MSCI World UCITS ETF", type: "buy", date: "2024-02-12", quantity: 40, price: 85.4, currency: "EUR", fees: 2 },
-  { id: "s2", symbol: "AAPL", name: "Apple Inc.", type: "buy", date: "2024-03-04", quantity: 15, price: 175.1, currency: "USD", fees: 1 },
-  { id: "s3", symbol: "SAN.MC", name: "Banco Santander, S.A.", type: "buy", date: "2024-04-08", quantity: 500, price: 4.55, currency: "EUR", fees: 3 },
-  { id: "s4", symbol: "BTC-EUR", name: "Bitcoin EUR", type: "buy", date: "2024-05-02", quantity: 0.05, price: 53800, currency: "EUR", fees: 5 },
-  { id: "s5", symbol: "NVDA", name: "NVIDIA Corporation", type: "buy", date: "2024-06-20", quantity: 40, price: 130.8, currency: "USD", fees: 1 },
-  { id: "s6", symbol: "IWDA.AS", name: "iShares Core MSCI World UCITS ETF", type: "buy", date: "2025-01-15", quantity: 25, price: 101.2, currency: "EUR", fees: 2 },
-  { id: "s7", symbol: "NVDA", name: "NVIDIA Corporation", type: "sell", date: "2025-02-10", quantity: 15, price: 133.6, currency: "USD", fees: 1 },
-  { id: "s8", symbol: "MSFT", name: "Microsoft Corporation", type: "buy", date: "2025-04-07", quantity: 6, price: 322, currency: "EUR", fees: 2 },
-];
-
-const DEFAULT: Stored = { txs: SAMPLE, settings: { base: "EUR", colorPnl: false }, isSample: true };
-
+/** Portfolio stored in the user's account. Writes are optimistic and roll back on failure. */
 export function usePortfolio() {
-  const [state, setState] = useState<Stored>(DEFAULT);
+  const [txs, setTxs] = useState<Transaction[]>([]);
+  const [settings, setSettingsState] = useState<Settings>(DEFAULT_SETTINGS);
   const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [localCandidate, setLocalCandidate] = useState<Transaction[] | null>(null);
+  const txsRef = useRef<Transaction[]>([]);
+  txsRef.current = txs;
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        const s = JSON.parse(raw) as Stored;
-        setState({ ...DEFAULT, ...s, settings: { ...DEFAULT.settings, ...s.settings } });
-      }
-    } catch {
-      /* storage unavailable: keep defaults */
+      const p = await api<{ txs: Transaction[]; settings: Settings }>("/api/portfolio");
+      setTxs(p.txs);
+      setSettingsState(p.settings);
+      setLocalCandidate(p.txs.length === 0 ? readLocal() : null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReady(true);
     }
-    setReady(true);
   }, []);
 
   useEffect(() => {
-    if (!ready) return;
+    load();
+  }, [load]);
+
+  const write = useCallback(async (next: Transaction[], call: () => Promise<unknown>) => {
+    const prev = txsRef.current;
+    setTxs(next);
+    setSaving((n) => n + 1);
     try {
-      localStorage.setItem(KEY, JSON.stringify(state));
+      await call();
+      setError(null);
+    } catch (e) {
+      setTxs(prev);
+      setError((e as Error).message);
+    } finally {
+      setSaving((n) => n - 1);
+    }
+  }, []);
+
+  const upsertTx = useCallback(
+    (tx: Transaction) =>
+      write(applyOptimistic(txsRef.current, { kind: "upsert", tx }), () => api("/api/portfolio/tx", { method: "PUT", body: JSON.stringify(tx) })),
+    [write],
+  );
+
+  const removeTx = useCallback(
+    (id: string) =>
+      write(applyOptimistic(txsRef.current, { kind: "delete", id }), () => api(`/api/portfolio/tx?id=${encodeURIComponent(id)}`, { method: "DELETE" })),
+    [write],
+  );
+
+  const replaceAll = useCallback(
+    (list: Transaction[], patch?: Partial<Settings>) => {
+      if (patch) setSettings(patch);
+      return write(list, () => api("/api/portfolio/import", { method: "POST", body: JSON.stringify({ txs: list, mode: "replace" }) }));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [write],
+  );
+
+  const appendMany = useCallback(
+    (list: Transaction[]) =>
+      write([...txsRef.current, ...list], () => api("/api/portfolio/import", { method: "POST", body: JSON.stringify({ txs: list, mode: "append" }) })),
+    [write],
+  );
+
+  const setSettings = useCallback(
+    (patch: Partial<Settings>) => {
+      setSettingsState((prev) => {
+        const next = { ...prev, ...patch };
+        api("/api/portfolio/settings", { method: "PUT", body: JSON.stringify(next) }).catch((e) => {
+          setSettingsState(prev);
+          setError((e as Error).message);
+        });
+        return next;
+      });
+    },
+    [],
+  );
+
+  const importLocal = useCallback(async () => {
+    if (!localCandidate) return;
+    await appendMany(localCandidate);
+    try {
+      localStorage.removeItem(LOCAL_KEY);
     } catch {
       /* ignore */
     }
-  }, [state, ready]);
+    setLocalCandidate(null);
+  }, [localCandidate, appendMany]);
 
-  const upsertTx = useCallback((tx: Transaction) => {
-    setState((s) => {
-      const base = s.isSample ? [] : s.txs;
-      const i = base.findIndex((t) => t.id === tx.id);
-      const txs = i >= 0 ? base.map((t) => (t.id === tx.id ? tx : t)) : [...base, tx];
-      return { ...s, txs, isSample: false };
-    });
+  const dismissLocal = useCallback(() => setLocalCandidate(null), []);
+
+  const deleteAccount = useCallback(async () => {
+    await api("/api/account", { method: "DELETE" });
   }, []);
 
-  const removeTx = useCallback((id: string) => {
-    setState((s) => ({ ...s, txs: s.txs.filter((t) => t.id !== id) }));
-  }, []);
+  return {
+    txs,
+    settings,
+    isSample: false,
+    ready,
+    saving: saving > 0,
+    error,
+    clearError: () => setError(null),
+    localCandidate,
+    upsertTx,
+    removeTx,
+    replaceAll,
+    appendMany,
+    setSettings,
+    importLocal,
+    dismissLocal,
+    deleteAccount,
+  };
+}
 
-  const replaceAll = useCallback((txs: Transaction[], settings?: Partial<Settings>) => {
-    setState((s) => ({ txs, settings: { ...s.settings, ...settings }, isSample: false }));
-  }, []);
-
-  const setSettings = useCallback((patch: Partial<Settings>) => {
-    setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }));
-  }, []);
-
-  return { ...state, ready, upsertTx, removeTx, replaceAll, setSettings };
+/** Portfolio saved in this browser by the previous version (ignores the example portfolio). */
+function readLocal(): Transaction[] | null {
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as { txs?: Transaction[]; isSample?: boolean };
+    if (s.isSample || !Array.isArray(s.txs) || s.txs.length === 0) return null;
+    return s.txs;
+  } catch {
+    return null;
+  }
 }
 
 export function newId(): string {
