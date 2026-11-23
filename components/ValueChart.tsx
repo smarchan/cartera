@@ -91,7 +91,7 @@ export default function ValueChart({
         <span className={`num ${tone(perf.ret)}`}>{pct(perf.ret)} TWR</span>
         <span className="spacer" />
         <span className="legend-inline">
-          <span><i />Valor</span>
+          <span><i style={{ borderTopColor: "#3987e5" }} />Valor</span>
           <span><i className="dash" />Coste</span>
         </span>
       </div>
@@ -101,8 +101,8 @@ export default function ValueChart({
             <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
               <defs>
                 <linearGradient id="gv" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ffffff" stopOpacity={0.16} />
-                  <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#3987e5" stopOpacity={0.32} />
+                  <stop offset="100%" stopColor="#3987e5" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid stroke="#1e1e22" vertical={false} />
@@ -132,7 +132,7 @@ export default function ValueChart({
                   );
                 }}
               />
-              <Area type="monotone" dataKey="value" stroke="#f2f2f3" strokeWidth={1.6} fill="url(#gv)" isAnimationActive={false} dot={false} activeDot={{ r: 3, fill: "#fff", stroke: "#000" }} />
+              <Area type="monotone" dataKey="value" stroke="#3987e5" strokeWidth={2} fill="url(#gv)" isAnimationActive={false} dot={false} activeDot={{ r: 4, fill: "#3987e5", stroke: "#111113", strokeWidth: 2 }} />
               <Line type="stepAfter" dataKey="cost" stroke="#7a7a82" strokeWidth={1.2} strokeDasharray="4 4" dot={false} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>

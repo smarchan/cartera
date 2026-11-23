@@ -35,6 +35,17 @@ export const PALETTE = {
   color: { pos: "#6cc495", neg: "#e07c7c", posText: "#7fd3a1", negText: "#ef8f8f" },
 };
 
+/** Categorical palette for the dark surface, validated for color-blind separation (fixed order, never cycled). */
+export const SERIES = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9", "#e66767"];
+export const OTHER = "#5e5e66";
+
+/** Stable color per key: the first 8 keys get palette slots in order, the rest share the neutral "other" gray. */
+export function colorMap(keys: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  keys.forEach((k, i) => (out[k] = i < SERIES.length ? SERIES[i] : OTHER));
+  return out;
+}
+
 export function shades(n: number): string[] {
   if (n <= 1) return ["#ececee"];
   return Array.from({ length: n }, (_, i) => {

@@ -8,7 +8,7 @@ export interface Db {
 }
 
 export const MAX_IMPORT = 500;
-const DEFAULT_SETTINGS: Settings = { base: "EUR", colorPnl: false };
+const DEFAULT_SETTINGS: Settings = { base: "EUR", colorPnl: true };
 
 const COLS = "id, user_id, symbol, name, type, date, quantity, price, currency, fees, fx, fx_base, note";
 

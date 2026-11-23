@@ -16,6 +16,7 @@ export default function Positions({
   base,
   loading,
   onTrade,
+  colors,
 }: {
   open: Position[];
   closed: Position[];
@@ -25,6 +26,7 @@ export default function Positions({
   base: string;
   loading: boolean;
   onTrade: (symbol: string, type: "buy" | "sell") => void;
+  colors: Record<string, string>;
 }) {
   const [sort, setSort] = useState<{ k: SortKey; dir: 1 | -1 }>({ k: "value", dir: -1 });
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -96,7 +98,7 @@ export default function Positions({
                     <tr className={`row ${isOpen ? "open" : ""}`} onClick={() => setExpanded(isOpen ? null : p.symbol)} aria-expanded={isOpen}>
                       <td className="l">
                         <div className="asset">
-                          <span className="avatar">{initials(p.symbol)}</span>
+                          <span className="avatar" style={{ boxShadow: `inset 3px 0 0 ${colors[p.symbol] ?? "transparent"}` }}>{initials(p.symbol)}</span>
                           <div style={{ minWidth: 0 }}>
                             <div className="sym">
                               {p.symbol} {fxDiff && <span className="tag">{p.currency}</span>}
@@ -118,7 +120,7 @@ export default function Positions({
                       <td>
                         <div className="weight">
                           <span className="num">{pct(p.weight, { sign: false, decimals: 1 })}</span>
-                          <span className="bar"><span style={{ width: `${Math.min(p.weight, 100)}%` }} /></span>
+                          <span className="bar"><span style={{ width: `${Math.min(p.weight, 100)}%`, background: colors[p.symbol] }} /></span>
                         </div>
                       </td>
                       <td className={`num ${tone(p.dayChange)} ${sk}`}>{money(p.dayChange, base, { sign: true })}</td>

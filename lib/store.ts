@@ -8,7 +8,7 @@ const LOCAL_KEY = "cartera:v1";
 export type { Settings };
 
 
-const DEFAULT_SETTINGS: Settings = { base: "EUR", colorPnl: false };
+const DEFAULT_SETTINGS: Settings = { base: "EUR", colorPnl: true };
 
 async function api<T = unknown>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { ...init, headers: { "Content-Type": "application/json" }, cache: "no-store" });

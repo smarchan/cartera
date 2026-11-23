@@ -4,9 +4,10 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { Position } from "@/lib/portfolio";
 import type { Quote } from "@/lib/types";
 import { money, pct } from "@/lib/format";
-import { shades } from "./ui";
+import { OTHER, colorMap } from "./ui";
 
 type By = "asset" | "ccy" | "type";
+const TYPE_ORDER = ["Acciones", "ETF", "Fondos", "Cripto", "Divisas", "Índices", "Futuros", "Otros"];
 const TYPE_ES: Record<string, string> = {
   EQUITY: "Acciones",
   ETF: "ETF",
@@ -17,7 +18,7 @@ const TYPE_ES: Record<string, string> = {
   FUTURE: "Futuros",
 };
 
-export default function Allocation({ positions, quotes, base }: { positions: Position[]; quotes: Record<string, Quote>; base: string }) {
+export default function Allocation({ positions, quotes, base, assetColors }: { positions: Position[]; quotes: Record<string, Quote>; base: string; assetColors: Record<string, string> }) {
   const [by, setBy] = useState<By>("asset");
   const [hover, setHover] = useState<number | null>(null);
 
@@ -36,7 +37,16 @@ export default function Allocation({ positions, quotes, base }: { positions: Pos
     return list;
   }, [positions, quotes, by]);
 
-  const colors = shades(rows.length);
+  // color follows the entity (stable across filters and value changes), never its rank
+  const colors = useMemo(() => {
+    if (by === "asset") return rows.map((r) => assetColors[r.name] ?? OTHER);
+    const order =
+      by === "ccy"
+        ? [...new Set([...positions].sort((a, b) => (a.firstDate < b.firstDate ? -1 : 1)).map((p) => p.currency))]
+        : TYPE_ORDER;
+    const map = colorMap(order);
+    return rows.map((r) => map[r.name] ?? OTHER);
+  }, [rows, by, positions, assetColors]);
   const focus = hover != null ? rows[hover] : null;
 
   return (
@@ -64,14 +74,13 @@ export default function Allocation({ positions, quotes, base }: { positions: Pos
                     nameKey="name"
                     innerRadius={50}
                     outerRadius={72}
-                    paddingAngle={rows.length > 1 ? 1.5 : 0}
-                    stroke="none"
+                    paddingAngle={0}
                     isAnimationActive={false}
                     onMouseEnter={(_, i) => setHover(i)}
                     onMouseLeave={() => setHover(null)}
                   >
                     {rows.map((r, i) => (
-                      <Cell key={r.name} fill={colors[i]} opacity={hover == null || hover === i ? 1 : 0.35} />
+                      <Cell key={r.name} fill={colors[i]} stroke="#111113" strokeWidth={2} opacity={hover == null || hover === i ? 1 : 0.35} />
                     ))}
                   </Pie>
                   <Tooltip content={() => null} />

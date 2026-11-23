@@ -79,5 +79,5 @@ test("reads numeric and date columns back as numbers and YYYY-MM-DD", async () =
 test("defaults settings when the user has none", async () => {
   const { db } = fakeDb([[], []]);
   const p = await getPortfolio(db, "u1");
-  assert.deepEqual(p.settings, { base: "EUR", colorPnl: false });
+  assert.deepEqual(p.settings, { base: "EUR", colorPnl: true });
 });

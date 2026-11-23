@@ -12,6 +12,7 @@ import PeriodPnl from "./PeriodPnl";
 import Positions from "./Positions";
 import Transactions from "./Transactions";
 import TxModal, { type TxPreset } from "./TxModal";
+import { colorMap } from "./ui";
 
 const BASES = ["EUR", "USD", "GBP", "CHF", "JPY"];
 
@@ -78,6 +79,8 @@ export default function Dashboard() {
   }, [txs, mkt.input]);
 
   const { open, closed, summary: s, series } = calc;
+  // one color per asset, in order of first purchase, shared by the donut and the table
+  const assetColors = useMemo(() => colorMap([...open].sort((a, b) => (a.firstDate < b.firstDate ? -1 : a.firstDate > b.firstDate ? 1 : a.symbol.localeCompare(b.symbol))).map((p) => p.symbol)), [open]);
   const warnings = [...mkt.errors, ...calc.warnings];
   const firstLoad = !pf.ready || (mkt.loading && !mkt.lastUpdate && txs.length > 0);
   const sk = firstLoad ? "skeleton" : "";
@@ -261,7 +264,7 @@ export default function Dashboard() {
 
         <div className="grid-2">
           <ValueChart series={series} base={base} today={mkt.input.today} dayChange={s.dayChange} dayChangePct={s.dayChangePct} />
-          <Allocation positions={open} quotes={mkt.quotes} base={base} />
+          <Allocation positions={open} quotes={mkt.quotes} base={base} assetColors={assetColors} />
         </div>
 
         <Positions
@@ -272,6 +275,7 @@ export default function Dashboard() {
           txs={txs}
           base={base}
           loading={firstLoad}
+          colors={assetColors}
           onTrade={(symbol, type) => setModal({ preset: { symbol, type, name: mkt.quotes[symbol]?.name } })}
         />
 
