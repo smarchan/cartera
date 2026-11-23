@@ -1,5 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
+import AssetChart, { rangeFor } from "./AssetChart";
+import { txMarkers } from "./Positions";
 import type { Transaction } from "@/lib/types";
 import { dateEs, money, price, qty, rate } from "@/lib/format";
 
@@ -9,13 +11,20 @@ export default function Transactions({
   toBase,
   onEdit,
   onDelete,
+  assetCcy,
+  livePrice,
+  colorPnl,
 }: {
   txs: Transaction[];
   base: string;
   toBase: (t: Transaction) => number;
   onEdit: (t: Transaction) => void;
   onDelete: (t: Transaction) => void;
+  assetCcy: Record<string, string>;
+  livePrice: (symbol: string) => number | undefined;
+  colorPnl: boolean;
 }) {
+  const [openId, setOpenId] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [confirm, setConfirm] = useState<string | null>(null);
   const [limit, setLimit] = useState(15);
@@ -68,8 +77,11 @@ export default function Transactions({
                 const gross = t.quantity * t.price;
                 const total = t.type === "buy" ? gross + t.fees : gross - t.fees;
                 const r = toBase(t);
+                const isOpen = openId === t.id;
+                const ccy = assetCcy[t.symbol] ?? t.currency;
                 return (
-                  <tr key={t.id}>
+                  <Fragment key={t.id}>
+                  <tr className={`row ${isOpen ? "open" : ""}`} onClick={() => setOpenId(isOpen ? null : t.id)} aria-expanded={isOpen} title="Ver la gráfica de este activo">
                     <td className="l num">{dateEs(t.date)}</td>
                     <td className="l">
                       <span className={`tag ${t.type === "buy" ? "solid" : ""}`}>{t.type === "buy" ? "Compra" : "Venta"}</span>
@@ -85,7 +97,7 @@ export default function Transactions({
                       {t.currency === base ? "—" : `${rate(r)}${t.fx && t.fxBase === base ? " ✎" : ""}`}
                     </td>
                     <td className="num">{money(total * r, base)}</td>
-                    <td style={{ width: 1 }}>
+                    <td style={{ width: 1 }} onClick={(e) => e.stopPropagation()}>
                       {confirm === t.id ? (
                         <span style={{ display: "inline-flex", gap: 4 }}>
                           <button className="btn sm danger" onClick={() => { onDelete(t); setConfirm(null); }}>Eliminar</button>
@@ -99,6 +111,21 @@ export default function Transactions({
                       )}
                     </td>
                   </tr>
+                  {isOpen && (
+                    <tr>
+                      <td colSpan={10} className="detail-cell">
+                        <AssetChart
+                          symbol={t.symbol}
+                          currency={ccy}
+                          live={livePrice(t.symbol)}
+                          markers={txMarkers(txs.filter((x) => x.symbol === t.symbol), ccy, t.id)}
+                          defaultRange={rangeFor(t.date)}
+                          colorPnl={colorPnl}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>

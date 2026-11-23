@@ -4,6 +4,8 @@ import type { Position, Summary } from "@/lib/portfolio";
 import type { Quote, Transaction } from "@/lib/types";
 import { dateEs, money, pct, price, qty, tone } from "@/lib/format";
 import { initials } from "./ui";
+import Sparkline from "./Sparkline";
+import AssetChart, { type ChartMarker } from "./AssetChart";
 
 type SortKey = "symbol" | "value" | "weight" | "dayChange" | "unrealized" | "unrealizedPct";
 
@@ -17,6 +19,8 @@ export default function Positions({
   loading,
   onTrade,
   colors,
+  sparks,
+  colorPnl,
 }: {
   open: Position[];
   closed: Position[];
@@ -27,6 +31,8 @@ export default function Positions({
   loading: boolean;
   onTrade: (symbol: string, type: "buy" | "sell") => void;
   colors: Record<string, string>;
+  sparks: Record<string, { prevClose: number; points: [number, number][] }>;
+  colorPnl: boolean;
 }) {
   const [sort, setSort] = useState<{ k: SortKey; dir: 1 | -1 }>({ k: "value", dir: -1 });
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -81,6 +87,7 @@ export default function Positions({
                 <th>Cantidad</th>
                 <th>Precio medio</th>
                 <th>Precio actual</th>
+                <th className="hide-sm">Sesión</th>
                 {th("value", `Valor (${base})`)}
                 {th("weight", "Peso")}
                 {th("dayChange", "Hoy")}
@@ -116,6 +123,15 @@ export default function Positions({
                         <span className={sk}>{price(p.price, p.currency)}</span>
                         <div className={`sub ${tone(p.changePct)}`}>{pct(p.changePct)}</div>
                       </td>
+                      <td className="hide-sm spark-cell">
+                        <Sparkline
+                          points={sparks[p.symbol]?.points ?? []}
+                          prevClose={sparks[p.symbol]?.prevClose ?? p.prevClose}
+                          live={q?.price}
+                          colorPnl={colorPnl}
+                          label={`${p.symbol} hoy: ${pct(p.changePct)}`}
+                        />
+                      </td>
                       <td className={`num ${sk}`}>{money(p.value, base)}</td>
                       <td>
                         <div className="weight">
@@ -134,8 +150,8 @@ export default function Positions({
                     </tr>
                     {isOpen && (
                       <tr>
-                        <td colSpan={9} className="detail-cell">
-                          <Detail p={p} txs={txs.filter((t) => t.symbol === p.symbol)} base={base} q={q} onTrade={onTrade} />
+                        <td colSpan={10} className="detail-cell">
+                          <Detail p={p} txs={txs.filter((t) => t.symbol === p.symbol)} base={base} q={q} onTrade={onTrade} colorPnl={colorPnl} />
                         </td>
                       </tr>
                     )}
@@ -149,6 +165,7 @@ export default function Positions({
                 <td />
                 <td />
                 <td />
+                <td className="hide-sm" />
                 <td className="num">{money(summary.value, base)}</td>
                 <td className="num">100 %</td>
                 <td className={`num ${tone(summary.dayChange)}`}>{money(summary.dayChange, base, { sign: true })}</td>
@@ -192,10 +209,28 @@ export default function Positions({
   );
 }
 
-function Detail({ p, txs, base, q, onTrade }: { p: Position; txs: Transaction[]; base: string; q?: Quote; onTrade: (s: string, t: "buy" | "sell") => void }) {
+export function txMarkers(txs: Transaction[], assetCurrency: string, highlightId?: string): ChartMarker[] {
+  return txs.map((t) => ({
+    date: t.date,
+    type: t.type,
+    price: t.currency === assetCurrency ? t.price : undefined,
+    quantity: t.quantity,
+    highlight: t.id === highlightId,
+  }));
+}
+
+function Detail({ p, txs, base, q, onTrade, colorPnl }: { p: Position; txs: Transaction[]; base: string; q?: Quote; onTrade: (s: string, t: "buy" | "sell") => void; colorPnl: boolean }) {
   const fxDiff = p.currency !== base;
   return (
     <div>
+      <AssetChart
+        symbol={p.symbol}
+        currency={p.currency}
+        live={q?.price}
+        markers={txMarkers(txs, p.currency)}
+        refLine={{ value: p.avgCost, label: `Precio medio ${price(p.avgCost, p.currency)}` }}
+        colorPnl={colorPnl}
+      />
       <div className="detail">
         <div><div className="k">Coste total</div><div className="v num">{money(p.costBase, base)}</div></div>
         <div><div className="k">Efecto precio</div><div className={`v num ${tone(p.priceEffect)}`}>{money(p.priceEffect, base, { sign: true })}</div></div>

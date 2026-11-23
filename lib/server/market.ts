@@ -178,6 +178,62 @@ export async function search(q: string): Promise<SearchResult[]> {
 }
 
 /* ------------------------------------------------------------------ */
+/* Intraday / range charts                                             */
+/* ------------------------------------------------------------------ */
+
+const RANGE_CFG = {
+  "1d": { days: 6, interval: "5m", ttl: 60e3 },
+  "5d": { days: 9, interval: "15m", ttl: 5 * 60e3 },
+  "1mo": { days: 32, interval: "60m", ttl: 30 * 60e3 },
+  "1y": { days: 370, interval: "1d", ttl: 3600e3 },
+  "5y": { days: 1830, interval: "1wk", ttl: 6 * 3600e3 },
+} as const;
+export type ChartRange = keyof typeof RANGE_CFG;
+export const CHART_RANGES = Object.keys(RANGE_CFG) as ChartRange[];
+
+export interface ChartData {
+  currency: string;
+  /** reference price: previous session close for 1d, first point otherwise */
+  prevClose: number;
+  /** [epoch ms, price] */
+  points: [number, number][];
+}
+
+/** Keeps the last `n` trading days of an intraday series (days in the exchange's time zone). */
+function lastDays(points: [number, number][], n: number, offSec: number): { kept: [number, number][]; before?: number } {
+  const day = (t: number) => new Date(t + offSec * 1000).toISOString().slice(0, 10);
+  const days = [...new Set(points.map(([t]) => day(t)))];
+  const keep = new Set(days.slice(-n));
+  const kept = points.filter(([t]) => keep.has(day(t)));
+  const firstKept = kept[0]?.[0];
+  const prior = points.filter(([t]) => firstKept != null && t < firstKept);
+  return { kept, before: prior[prior.length - 1]?.[1] };
+}
+
+export async function getChart(symbol: string, range: ChartRange): Promise<ChartData> {
+  if (MOCK) return mockChart(symbol, range);
+  const cfg = RANGE_CFG[range];
+  return cached(`c:${symbol}:${range}`, cfg.ttl, async () => {
+    const c: any = await yf.chart(
+      symbol,
+      { period1: new Date(Date.now() - cfg.days * 864e5), interval: cfg.interval as any },
+      NO_VALIDATE,
+    );
+    const { currency, div } = normCurrency(c.meta?.currency);
+    const off = c.meta?.gmtoffset ?? 0;
+    const all: [number, number][] = (c.quotes ?? [])
+      .filter((q: any) => q?.close != null && q.date)
+      .map((q: any) => [new Date(q.date).getTime(), q.close / div]);
+    if (range === "1d" || range === "5d") {
+      const { kept, before } = lastDays(all, range === "1d" ? 1 : 5, off);
+      const prev = before ?? (c.meta?.chartPreviousClose != null ? c.meta.chartPreviousClose / div : kept[0]?.[1] ?? 0);
+      return { currency, prevClose: prev, points: kept };
+    }
+    return { currency, prevClose: all[0]?.[1] ?? 0, points: all };
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* Mock data (PRICE_SOURCE=mock) for local development without network */
 /* ------------------------------------------------------------------ */
 
@@ -297,4 +353,24 @@ function mockSearch(q: string): SearchResult[] {
   return Object.entries(KNOWN)
     .filter(([s, [n]]) => s.toLowerCase().includes(ql) || n.toLowerCase().includes(ql))
     .map(([s, [n]]) => ({ symbol: s, name: n, exchange: "Simulado", type: isCrypto(s) ? "Cripto" : "Acción" }));
+}
+
+function mockChart(symbol: string, range: ChartRange): ChartData {
+  const q = mockQuote(symbol);
+  const price = "error" in q ? 100 : q.price;
+  const prev = "error" in q ? 100 : q.prevClose;
+  const cfg = { "1d": [78, 5], "5d": [130, 15], "1mo": [160, 280], "1y": [252, 1440], "5y": [260, 10080] }[range];
+  const [n, stepMin] = cfg;
+  const seed = hash(symbol + range);
+  const pts: [number, number][] = [];
+  const vol = range === "1d" ? 0.0015 : range === "5d" ? 0.003 : 0.012;
+  let lp = Math.log(range === "1d" ? prev : price * 0.8);
+  const target = Math.log(price);
+  const now = Date.now();
+  for (let i = 0; i < n; i++) {
+    lp += (target - lp) / (n - i) + vol * gauss(seed + i * 31);
+    pts.push([now - (n - 1 - i) * stepMin * 60e3, Math.exp(lp)]);
+  }
+  pts[pts.length - 1][1] = price;
+  return { currency: mockCurrency(symbol), prevClose: range === "1d" ? prev : pts[0][1], points: pts };
 }

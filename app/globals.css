@@ -245,3 +245,13 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .prose p, .prose li { color: var(--muted); line-height: 1.6; }
 .menu a.mi-link { display: flex; padding: 8px 10px; border-radius: 6px; font-size: 13px; color: var(--muted); text-decoration: none; }
 .menu a.mi-link:hover { background: var(--surface-2); color: var(--text); }
+
+/* ---------- Mini charts & asset chart ---------- */
+.spark-cell { width: 110px; }
+.spark { display: block; margin-left: auto; overflow: visible; }
+.spark-empty { display: inline-block; border-bottom: 1px dashed var(--line-strong); }
+.asset-chart { padding: 12px 4px 4px; }
+.asset-chart-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 0 8px 8px; }
+.asset-chart-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); padding: 6px 8px 10px; }
+.asset-chart-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.detail-cell .asset-chart { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; margin: 4px 0 12px; }

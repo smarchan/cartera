@@ -30,6 +30,7 @@ export default function Dashboard() {
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [showWarn, setShowWarn] = useState(false);
+  const [sparks, setSparks] = useState<Record<string, { prevClose: number; points: [number, number][] }>>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +80,24 @@ export default function Dashboard() {
   }, [txs, mkt.input]);
 
   const { open, closed, summary: s, series } = calc;
+  // last-session mini charts for open positions, refreshed every minute
+  const openKey = open.map((p) => p.symbol).sort().join(",");
+  useEffect(() => {
+    if (!openKey) return;
+    let alive = true;
+    const load = () =>
+      fetch(`/api/spark?symbols=${encodeURIComponent(openKey)}`)
+        .then((r) => (r.ok ? r.json() : {}))
+        .then((d) => alive && setSparks(d))
+        .catch(() => {});
+    load();
+    const id = setInterval(() => document.visibilityState === "visible" && load(), 60_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [openKey]);
+
   // one color per asset, in order of first purchase, shared by the donut and the table
   const assetColors = useMemo(() => colorMap([...open].sort((a, b) => (a.firstDate < b.firstDate ? -1 : a.firstDate > b.firstDate ? 1 : a.symbol.localeCompare(b.symbol))).map((p) => p.symbol)), [open]);
   const warnings = [...mkt.errors, ...calc.warnings];
@@ -276,6 +295,8 @@ export default function Dashboard() {
           base={base}
           loading={firstLoad}
           colors={assetColors}
+          sparks={sparks}
+          colorPnl={settings.colorPnl}
           onTrade={(symbol, type) => setModal({ preset: { symbol, type, name: mkt.quotes[symbol]?.name } })}
         />
 
@@ -286,6 +307,9 @@ export default function Dashboard() {
           base={base}
           toBase={(t) => calc.mk.txToBase(t)}
           onEdit={(t) => setModal({ edit: t })}
+          assetCcy={mkt.input.assetCcy}
+          livePrice={(s) => mkt.quotes[s]?.price}
+          colorPnl={settings.colorPnl}
           onDelete={(t) => { pf.removeTx(t.id); setToast(`Operación de ${t.symbol} eliminada.`); }}
         />
 
