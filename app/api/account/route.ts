@@ -11,7 +11,7 @@ export async function DELETE() {
   const userId = await requireUser();
   if (typeof userId !== "string") return userId;
   try {
-    await deleteUserData(getDb(), userId);
+    await deleteUserData(await getDb(), userId);
     await (await clerkClient()).users.deleteUser(userId);
     return NextResponse.json({ ok: true });
   } catch (e) {

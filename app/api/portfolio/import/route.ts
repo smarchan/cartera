@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   if (!body || !Array.isArray(body.txs)) return NextResponse.json({ error: "Faltan operaciones." }, { status: 400 });
   const mode = body.mode === "replace" ? "replace" : "append";
   try {
-    const count = await importTxs(getDb(), userId, body.txs, mode);
+    const count = await importTxs(await getDb(), userId, body.txs, mode);
     return NextResponse.json({ ok: true, count });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";

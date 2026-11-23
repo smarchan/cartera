@@ -12,7 +12,7 @@ export async function PUT(req: NextRequest) {
   const r = validateSettings(await readJson(req));
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
   try {
-    await saveSettings(getDb(), userId, r.settings);
+    await saveSettings(await getDb(), userId, r.settings);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return fail(e);

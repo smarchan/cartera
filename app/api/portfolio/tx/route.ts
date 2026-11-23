@@ -12,7 +12,7 @@ export async function PUT(req: NextRequest) {
   const r = validateTx(await readJson(req));
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
   try {
-    await upsertTx(getDb(), userId, r.tx);
+    await upsertTx(await getDb(), userId, r.tx);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return fail(e);
@@ -25,7 +25,7 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id") ?? "";
   if (!id || id.length > 64) return NextResponse.json({ error: "Identificador inválido." }, { status: 400 });
   try {
-    await deleteTx(getDb(), userId, id);
+    await deleteTx(await getDb(), userId, id);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return fail(e);
