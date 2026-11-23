@@ -1,6 +1,6 @@
 # Cuentas de usuario y cartera en la nube — diseño
 
-Fecha: 2026-11-23 · Estado: pendiente de aprobación
+Fecha: 2026-11-23 · Estado: aprobado
 
 ## Intención
 
@@ -79,9 +79,9 @@ Samuel eligió A.
 - Instalar Clerk y Neon desde el Marketplace de Vercel (aceptar términos con su cuenta).
 - Si hay dominio propio: añadirlo en Vercel y los registros DNS que pida Clerk.
 
-## Decisiones abiertas (de Samuel)
-1. Dominio: modo desarrollo de Clerk en `vercel.app` ahora, o dominio propio para modo producción.
-2. Registro abierto a quien tenga el enlace, o solo correos en una lista de invitados.
+## Decisiones de Samuel
+1. Dominio: modo desarrollo de Clerk en `cartera-wine-two.vercel.app` por ahora; pasar a dominio propio más adelante sin rehacer la app.
+2. Registro abierto a quien tenga el enlace (sin lista de invitados). La web sigue fuera de Google.
 
 ## Decisiones del constructor
 - SQL directo en lugar de ORM; cantidades `numeric` y conversión a `number` en el servidor.

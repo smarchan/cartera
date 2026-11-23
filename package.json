@@ -6,9 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
+    "@clerk/localizations": "^4.24.6",
+    "@clerk/nextjs": "^7.9.25",
+    "@neondatabase/serverless": "^1.2.0",
     "geist": "^1.9.2",
     "next": "15.5.29",
     "react": "19.3.1",

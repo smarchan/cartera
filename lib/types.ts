@@ -53,3 +53,8 @@ export interface SearchResult {
   exchange: string;
   type: string;
 }
+
+export interface Settings {
+  base: string;
+  colorPnl: boolean;
+}
