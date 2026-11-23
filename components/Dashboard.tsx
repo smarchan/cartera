@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { UserButton } from "@clerk/nextjs";
 import { Market, computePositions, computeSeries, sortTx } from "@/lib/portfolio";
 import { fromCsv, toCsv, usePortfolio } from "@/lib/store";
 import { useMarket } from "@/lib/useMarket";
@@ -164,6 +165,7 @@ export default function Dashboard() {
           <button className="btn primary" onClick={() => setModal({})}>
             <span aria-hidden="true">+</span> <span className="hide-sm">Nueva operación</span>
           </button>
+          <UserButton appearance={{ elements: { avatarBox: { width: 30, height: 30 } } }} />
           <input ref={fileRef} type="file" accept=".csv,.json,text/csv,application/json" hidden id="import-file" onChange={(e) => { const f = e.target.files?.[0]; if (f) onImport(f); e.target.value = ""; }} />
         </div>
       </header>
